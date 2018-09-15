@@ -102,3 +102,8 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+.vscode
+.env
+creds.ini
+test.py
