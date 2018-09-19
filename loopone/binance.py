@@ -39,8 +39,9 @@ class BinanceClient(object):
     ) -> None:
         self.__api_key: str = api_key
         self.__api_secret: str = api_secret
-        self.loop: AbstractEventLoop = loop
-        self.async_session = aiohttp.ClientSession(loop=loop)
+        self.loop: asyncio.AbstractEventLoop = loop
+        if loop:
+            self.async_session = aiohttp.ClientSession(loop=loop)
         self.session = self._init_session(api_key, api_secret)
 
     def _init_session(self, api_key: str, api_secret: str) -> requests.Session:
@@ -185,10 +186,10 @@ class BinanceClient(object):
         return self._get(
             "klines",
             params={
-                "symbol": symbol,
+                "symbol": symbol.upper(),
                 "interval": interval,
-                "start_time": start_time,
-                "end_time": end_time,
+                "startTime": start_time,
+                "endTime": end_time,
                 "limit": limit,
             },
         )
@@ -196,7 +197,7 @@ class BinanceClient(object):
     async def get_ws_price_stream(self, symbol: str) -> aiohttp.ClientWebSocketResponse:
         lower_symbol = symbol.lower()
         async with self.async_session.ws_connect(
-            f"{STREAM_URL}stream?streams=ethbtc@ticker/ethbtc@kline_1h"
+            f"{STREAM_URL}stream?streams=ethbtc@kline_1h"
         ) as ws:
             async for msg in ws:
                 yield msg

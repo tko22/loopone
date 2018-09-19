@@ -10,10 +10,8 @@ import pprint
 
 
 def main():
-    creds = get_credentials()
-    worker = TradingEnvironment(
-        api_key=creds["api_key"], api_secret=creds["api_secret"]
-    )
+    api_key, api_secret = get_credentials()
+    worker = TradingEnvironment(api_key, api_secret)
     worker.run_worker()
     # client = BinanceClient(api_key=creds["api_key"], api_secret=creds["api_secret"])
     # initial_time = time.time()

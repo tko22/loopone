@@ -1,9 +1,13 @@
 import asyncio
 import time
 
+import pandas as pd
 from enums import TradingType, State
 from binance import BinanceClient
 from data_portal import DataPortal
+from common import milli_to_date
+from models import KlineRecord
+from finance.technicals import get_twenty_hr_moving_avg
 
 
 class TradingEnvironment(object):
@@ -34,11 +38,63 @@ class TradingEnvironment(object):
         ws = self._client.get_ws_price_stream("ethbtc")
         dp = DataPortal(ws, "ethbtc")
         ctx = {}
+
         async for msg in dp.data_stream():
-            print(msg)
-            if time.time() - initial_time >= 10:
+            print("Time:", milli_to_date(msg["data"]["k"]["t"]))
+            print("open", msg["data"]["k"]["o"])
+            print(msg["data"]["k"]["c"])
+            print("\n")
+            if time.time() - initial_time >= 100:
                 break
-        print("loop down")
+
+    async def collect(self):
+        ws = self._client.get_ws_price_stream("ethbtc")
+        dp = DataPortal(ws, "ethbtc")
+        curr_start_time: str = None
+        moving_avg: float = None
+        async for msg in dp.data_stream():
+            data = msg["data"]
+            kline_data = data["k"]
+
+            if curr_start_time != kline_data["t"]:
+                curr_start_time = kline_data["t"]
+                print("getting new moving avg")
+                history_data = self._client.get_kline("ethbtc", limit=50)
+                pd_data = pd.DataFrame(history_data)
+                pd_data = pd.Series(pd_data[4])
+                moving_avg = get_twenty_hr_moving_avg(pd_data)
+
+            record = KlineRecord(
+                symbol=data["s"],
+                price=kline_data["c"],
+                event_time=milli_to_date(data["E"]),
+                kline_start_time=milli_to_date(kline_data["t"]),
+                kline_close_time=milli_to_date(kline_data["T"]),
+                interval=kline_data["i"],
+                first_trade_id=kline_data["f"],
+                last_trade_id=kline_data["L"],
+                open_price=float(kline_data["o"]),
+                close_price=float(kline_data["c"]),
+                high_price=float(kline_data["h"]),
+                low_price=float(kline_data["l"]),
+                base_asset_volume=float(kline_data["v"]),
+                num_of_trades=kline_data["n"],
+                kline_closed=kline_data["x"],
+                quote_asset_volume=kline_data["q"],
+                taker_buy_base_asset_volume=kline_data["V"],
+                taker_buy_quote_asset_volume=kline_data["Q"],
+                twenty_hour_moving_average=moving_avg,
+            )
+            record.save()
+            print("adding record")
+
+    def run_collector(self):
+        try:
+            self.loop.run_until_complete(self.collect())
+        except KeyboardInterrupt:
+            print("Interrupted")
+        finally:
+            self.stop()
 
     def run_worker(self):
         try:
@@ -46,7 +102,6 @@ class TradingEnvironment(object):
         except KeyboardInterrupt:
             print("Interrupted")
         finally:
-            print("finally")
             self.stop()
 
     async def get_environment(self):
@@ -68,7 +123,7 @@ class TradingEnvironment(object):
         pass
 
     def stop(self):
+        print("Stopping....")
         self.loop.run_until_complete(self._client.close_session())
-        print("stop")
         self.loop.stop()
         self.loop.close()

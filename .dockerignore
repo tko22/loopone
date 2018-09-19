@@ -1,0 +1,5 @@
+*
+!loopone
+!creds.ini
+!requirements.txt
+__pycache__/

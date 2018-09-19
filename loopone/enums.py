@@ -11,3 +11,4 @@ class TradingType(Enum):
     PAPER = "PAPER"
     BACKTEST = "BACKTEST"
     REAL_TRADE = "REAL_TRADE"
+    COLLECT = "COLLECT"
