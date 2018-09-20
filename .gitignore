@@ -106,3 +106,7 @@ venv.bak/
 .vscode
 .env
 creds.ini
+
+*.csv
+*.xlsx
+*.xml
