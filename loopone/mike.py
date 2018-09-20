@@ -103,3 +103,5 @@ print(statistics.stdev(price_history))
 
 print("ma_trade_signal")
 print(ma_trade_signal(SMA,EMA,price_history))  
+
+# hi test
