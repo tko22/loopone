@@ -1,34 +1,56 @@
-from dataclasses import dataclass
+from typing import Dict
+
+import pandas as pd
+from common import milli_to_date
+from finance.technicals import get_sma
 
 
-@dataclass
 class DataTopic(object):
-    e = "24hrTicker"  # Event type
-    E = 123456789  # Event time
-    s = "BNBBTC"  # Symbol
-    p = "0.0015"  # Price change
-    P = "250.00"  # Price change percent
-    w = "0.0018"  # Weighted average price
-    x = "0.0009"  # Previous day's close price
-    c = "0.0025"  # Current day's close price
-    Q = "10"  # Close trade's quantity
-    b = "0.0024"  # Best bid price
-    B = "10"  # Best bid quantity
-    a = "0.0026"  # Best ask price
-    A = "100"  # Best ask quantity
-    o = "0.0010"  # Open price
-    h = "0.0025"  # High price
-    l = "0.0010"  # Low price
-    v = "10000"  # Total traded base asset volume
-    q = "18"  # Total traded quote asset volume
-    O = 0  # Statistics open time
-    C = 86400000  # Statistics close time
-    F = 0  # First trade ID
-    L = 18150  # Last trade Id
-    n = 18151  # Total number of trades
-    # def __init(self, symbol: str, data):
-    #     self.smbol = symbol
-    #     self.data = data  # thinking Dataframe
+    __slots__ = [
+        "symbol",
+        "price",
+        "event_time",
+        "kline_start_time",
+        "kline_close_time",
+        "interval",
+        "first_trade_id",
+        "last_trade_id",
+        "open_price",
+        "close_price",
+        "high_price",
+        "low_price",
+        "base_asset_volume",
+        "num_of_trades",
+        "kline_closed",
+        "quote_asset_volume",
+        "taker_buy_base_asset_volume",
+        "taker_buy_quote_asset_volume",
+        "history",
+    ]
+
+    def __init__(self, data: Dict, history: pd.DataFrame, sma: float = None) -> None:
+
+        kline_data = data["k"]
+
+        self.symbol = data["s"]
+        self.price = kline_data["c"]
+        self.event_time = milli_to_date(data["E"])
+        self.kline_start_time = milli_to_date(kline_data["t"])
+        self.kline_close_time = milli_to_date(kline_data["T"])
+        self.interval = kline_data["i"]
+        self.first_trade_id = kline_data["f"]
+        self.last_trade_id = kline_data["L"]
+        self.open_price = float(kline_data["o"])
+        self.close_price = float(kline_data["c"])
+        self.high_price = float(kline_data["h"])
+        self.low_price = float(kline_data["l"])
+        self.base_asset_volume = float(kline_data["v"])
+        self.num_of_trades = kline_data["n"]
+        self.kline_closed = kline_data["x"]
+        self.quote_asset_volume = kline_data["q"]
+        self.taker_buy_base_asset_volume = kline_data["V"]
+        self.taker_buy_quote_asset_volume = kline_data["Q"]
+        self.history = history
 
     # def volume(self):
     #     pass
@@ -39,5 +61,9 @@ class DataTopic(object):
     # def current(self):
     #     pass
 
-    # def twenty_hr_moving_average(self):
-    #     pass
+    def get_twenty_sma(self) -> float:
+        data = pd.Series(self.history["close_price"])
+        return get_sma(data, 20)
+
+    def get_ema(self):
+        pass

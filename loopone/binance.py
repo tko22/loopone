@@ -194,10 +194,12 @@ class BinanceClient(object):
             },
         )
 
-    async def get_ws_price_stream(self, symbol: str) -> aiohttp.ClientWebSocketResponse:
+    async def get_ws_price_stream(
+        self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value
+    ) -> aiohttp.ClientWebSocketResponse:
         lower_symbol = symbol.lower()
         async with self.async_session.ws_connect(
-            f"{STREAM_URL}stream?streams=ethbtc@kline_1h"
+            f"{STREAM_URL}stream?streams={symbol}@kline_{interval}"
         ) as ws:
             async for msg in ws:
                 yield msg

@@ -7,7 +7,7 @@ from binance import BinanceClient
 from data_portal import DataPortal
 from common import milli_to_date
 from models import KlineRecord
-from finance.technicals import get_twenty_hr_moving_avg
+from finance.technicals import get_sma
 
 
 class TradingEnvironment(object):
@@ -34,22 +34,17 @@ class TradingEnvironment(object):
         pass
 
     async def run_algorithm(self):
-        initial_time = time.time()
-        ws = self._client.get_ws_price_stream("ethbtc")
-        dp = DataPortal(ws, "ethbtc")
+        dp = DataPortal(self._client, "ethbtc")
         ctx = {}
 
-        async for msg in dp.data_stream():
-            print("Time:", milli_to_date(msg["data"]["k"]["t"]))
-            print("open", msg["data"]["k"]["o"])
-            print(msg["data"]["k"]["c"])
+        async for dt in dp.data_stream():
+            print("Close Price:", dt.price)
+            print("open", dt.kline_start_time)
             print("\n")
-            if time.time() - initial_time >= 100:
-                break
 
     async def collect(self):
         ws = self._client.get_ws_price_stream("ethbtc")
-        dp = DataPortal(ws, "ethbtc")
+        dp = DataPortal(ws, "hoteth")
         curr_start_time: str = None
         moving_avg: float = None
         async for msg in dp.data_stream():
@@ -62,7 +57,7 @@ class TradingEnvironment(object):
                 history_data = self._client.get_kline("ethbtc", limit=50)
                 pd_data = pd.DataFrame(history_data)
                 pd_data = pd.Series(pd_data[4])
-                moving_avg = get_twenty_hr_moving_avg(pd_data)
+                moving_avg = get_sma(pd_data, 20)
 
             record = KlineRecord(
                 symbol=data["s"],
