@@ -2,7 +2,7 @@ import asyncio
 import time
 
 import pandas as pd
-from enums import TradingType, State
+from enums import TradingType, State, OrderType
 from binance import BinanceClient
 from data_portal import DataPortal
 from common import milli_to_date
@@ -28,10 +28,6 @@ class TradingEnvironment(object):
             asyncio.get_event_loop()
         )  # TODO make it an event loop in which we plug the binance client in
         self._client = BinanceClient(api_key, api_secret, self.loop)
-
-    async def order(self):
-        """Make an Order"""
-        pass
 
     async def run_algorithm(self):
         dp = DataPortal(self._client, "ethbtc")
@@ -103,6 +99,13 @@ class TradingEnvironment(object):
         pass
 
     async def schedule_function(self):
+        pass
+
+    # ---------------------------------------------------- #
+    # The following functions are api functions for the algorithm
+
+    async def order(self, type: OrderType):
+        """Make an Order"""
         pass
 
     async def symbol_price(self, symbol_price: str):

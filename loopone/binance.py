@@ -205,6 +205,36 @@ class BinanceClient(object):
                 yield msg
         await self.async_session.close()
 
+    # account endpoints
+    def create_order(self, symbol: str, side: str, type: str, quantity: float, **params):
+        """Send in a new order
+        Any order with an icebergQty MUST have timeInForce set to GTC.
+        https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#new-order--trade
+        :param symbol: required
+        :type symbol: str
+        :param side: required
+        :type side: str
+        :param type: required
+        :type type: str
+        :param timeInForce: required if limit order
+        :type timeInForce: str
+        :param quantity: required
+        :type quantity: decimal
+        :param price: required
+        :type price: str
+        :param newClientOrderId: A unique id for the order. Automatically generated if not sent.
+        :type newClientOrderId: str
+        :param icebergQty: Used with LIMIT, STOP_LOSS_LIMIT, and TAKE_PROFIT_LIMIT to create an iceberg order.
+        :type icebergQty: decimal
+        :param newOrderRespType: Set the response JSON. ACK, RESULT, or FULL; default: RESULT.
+        :type newOrderRespType: str
+        :param recvWindow: the number of milliseconds the request is valid for
+        :type recvWindow: int
+        :returns: API response
+        
+        """
+        return self._post("order", True, data=params)
+
     async def close_session(self):
         print("Closing session...")
         await self.async_session.close()

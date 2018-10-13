@@ -4,7 +4,7 @@ from binance import BinanceClient
 from common import get_credentials, milli_to_date
 from binance_enums import KlineIntervals
 
-ONE_MIN_TIME_DIFF_THOUSAND_KLINE = 59940000
+ONE_MIN_TIME_DIFF_THOUSAND_KLINE = 59_940_000
 
 api_key, api_secret = get_credentials()
 client = BinanceClient(api_key, api_secret)
@@ -24,12 +24,16 @@ new_data = client.get_kline(
 new_data += data
 
 added_datetime = [
-    x + [milli_to_date(x[0]).ctime(), milli_to_date(x[6]).ctime()] for x in new_data
+    x
+    + [
+        milli_to_date(x[0]).strftime("%m/%d/%y %H:%M"),
+        milli_to_date(x[6]).strftime("%m/%d/%y %H:%M"),
+    ]
+    for x in new_data
 ]
 
-
 with open(
-    f'ethbtc-{added_datetime[0][12].replace(" ", "-")}_{added_datetime[-1][12].replace(" ", "-")}.csv',
+    f'ethbtc-{milli_to_date(added_datetime[0][0]).ctime().replace(" ", "-")}_{milli_to_date(added_datetime[-1][6]).ctime().replace(" ", "-")}.csv',
     "w",
     newline="",
 ) as csvfile:

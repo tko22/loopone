@@ -20,13 +20,41 @@ def get_sma(data: pd.Series, num_of_periods: int) -> float:
     return data.mean()
 
 
-def generate_sma_list(data: pd.Series, duration: int) -> pd.Series:
+def generate_sma_list(data: pd.Series, duration: int = 20) -> pd.Series:
     """Generate a list of SMA given a Series of prices."""
     if len(data) < duration:
         return None
-    data = data.astype(float)
+    new_data = data.astype(float)
 
     return pd.DataFrame(
-        [data[x : x + duration].mean() for x in range(0, len(data) - duration)]
+        [new_data[x : x + duration].mean() for x in range(0, len(new_data) - duration)]
     )
 
+
+def generate_ema_list(
+    closing_prices: pd.Series, sma_list: pd.Series, duration: int = 20
+) -> pd.Series:
+    # first exponential moving average reference point is simple
+    # '1000' proxy for our furthest back available data
+    # ema = ((current price - previous EMA) * weight) + previous EMA
+    weight = 2 / (duration + 1)
+    ret = []
+    if sma_list is None:
+        sma_list = generate_sma_list(closing_prices, duration)
+    last_valid_sma_idx = sma_list.last_valid_index()
+
+    oldest_sma = sma_list[last_valid_sma_idx]  # given most-current on top
+
+    oldest_ema = (
+        (closing_prices[len(closing_prices) - duration] - oldest_sma) * weight
+    ) + oldest_sma
+    ret.append(oldest_ema)
+
+    for index in range(1, len(closing_prices) - duration + 1):
+
+        ret.insert(
+            0,
+            (closing_prices[len(closing_prices) - duration - index] - ret[0]) * weight
+            + ret[0],
+        )
+    return pd.Series(ret)

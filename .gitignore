@@ -110,3 +110,4 @@ creds.ini
 test.py
 
 *.csv
+*.xlsx
