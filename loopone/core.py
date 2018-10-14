@@ -33,9 +33,14 @@ class TradingEnvironment(object):
         dp = DataPortal(self._client, "ethbtc")
         ctx = {}
 
+        # streaming data
         async for dt in dp.data_stream():
+            if dt.base_asset_volume > 100:
+                print("hi")
+            
+            import ipdb; ipdb.set_trace()
             print("Close Price:", dt.price)
-            print("open", dt.kline_start_time)
+            # print("open", dt.kline_start_time)
             print("\n")
 
     async def collect(self):

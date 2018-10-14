@@ -64,9 +64,7 @@ class DataPortal(object):
                 history["ema_history"] = generate_ema_list(
                     history["close_price"], history["sma_history"], 20
                 )
-                import ipdb
-
-                ipdb.set_trace()
+                
             dt = DataTopic(data=data, history=history)
 
             yield dt
