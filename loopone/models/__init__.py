@@ -1,2 +1,2 @@
-import models.base
-from models.record import KlineRecord
+import loopone.models.base
+from loopone.models.record import KlineRecord

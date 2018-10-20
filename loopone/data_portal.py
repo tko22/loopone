@@ -3,10 +3,11 @@ import time
 from typing import Dict
 
 import pandas as pd
-from common import KlineDataSchema
-from data_topic import DataTopic
-from finance.technicals import get_sma, generate_sma_list, generate_ema_list
-from enums import KlineIntervals
+
+from loopone.common import KlineDataSchema
+from loopone.data_topic import DataTopic
+from loopone.finance.technicals import get_sma, generate_sma_list, generate_ema_list
+from loopone.enums import KlineIntervals
 
 
 # TODO Make requests for additional information asynchrounous, adding them into a list of tasks
@@ -64,9 +65,6 @@ class DataPortal(object):
                 history["ema_history"] = generate_ema_list(
                     history["close_price"], history["sma_history"], 20
                 )
-                import ipdb
-
-                ipdb.set_trace()
             dt = DataTopic(data=data, history=history)
 
             yield dt

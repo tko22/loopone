@@ -1,8 +1,9 @@
 from typing import Dict
 
 import pandas as pd
-from common import milli_to_date
-from finance.technicals import get_sma
+
+from loopone.common import milli_to_date
+from loopone.finance.technicals import get_sma
 
 
 class DataTopic(object):

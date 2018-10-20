@@ -2,17 +2,18 @@ import asyncio
 import time
 
 import pandas as pd
-from enums import TradingType, State, OrderType, KlineIntervals
-from binance import BinanceClient
-from data_portal import DataPortal
-from common import milli_to_date, kline_bn_to_df, milli_to_str
-from finance.technicals import (
+
+from loopone.enums import TradingType, State, OrderType, KlineIntervals
+from loopone.binance import BinanceClient
+from loopone.data_portal import DataPortal
+from loopone.common import milli_to_date, kline_bn_to_df, milli_to_str
+from loopone.finance.technicals import (
     get_sma,
     generate_ema_list,
     generate_sma_list,
     get_percent_change,
 )
-from models import KlineRecord
+from loopone.models import KlineRecord
 
 
 class TradingEnvironment(object):
@@ -50,10 +51,10 @@ class TradingEnvironment(object):
         )  # defaults to 5000 1m klines
         klines = kline_bn_to_df(list(reversed(raw_data)))
 
-        klines["Open Datetime"] = klines.apply(
+        klines["open_datetime"] = klines.apply(
             lambda row: milli_to_str(row["open_time"]), axis=1
         )
-        klines["Closed Datetime"] = klines.apply(
+        klines["close_datetime"] = klines.apply(
             lambda row: milli_to_str(row["close_time"]), axis=1
         )
         klines["sma_history"] = generate_sma_list(klines["close_price"], 20)
@@ -85,7 +86,7 @@ class TradingEnvironment(object):
                 return_list[x] = return_list[x + 1] * (1 + klines["percent_change"][x])
         klines["trade_signal"] = trade_signal
         klines["return_series"] = return_list
-
+        self.stop()
         return klines
 
     def run_worker(self, func):

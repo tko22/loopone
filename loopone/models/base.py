@@ -1,5 +1,5 @@
 from mongoengine import connect
-from common import get_mongo_credentials
+from loopone.common import get_mongo_credentials
 
 (db_name, mongo_url) = get_mongo_credentials()
 

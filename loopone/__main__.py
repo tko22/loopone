@@ -2,9 +2,9 @@ import time
 import asyncio
 from datetime import datetime
 
-from binance import BinanceClient
-from common import get_credentials, milli_to_date
-from core import TradingEnvironment
+from loopone.binance import BinanceClient
+from loopone.common import get_credentials, milli_to_date
+from loopone.core import TradingEnvironment
 
 import pprint
 
