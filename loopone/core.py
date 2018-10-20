@@ -2,12 +2,17 @@ import asyncio
 import time
 
 import pandas as pd
-from enums import TradingType, State, OrderType
+from enums import TradingType, State, OrderType, KlineIntervals
 from binance import BinanceClient
 from data_portal import DataPortal
-from common import milli_to_date
+from common import milli_to_date, kline_bn_to_df, milli_to_str
+from finance.technicals import (
+    get_sma,
+    generate_ema_list,
+    generate_sma_list,
+    get_percent_change,
+)
 from models import KlineRecord
-from finance.technicals import get_sma
 
 
 class TradingEnvironment(object):
@@ -37,59 +42,55 @@ class TradingEnvironment(object):
             print("Close Price:", dt.price)
             print("open", dt.kline_start_time)
             print("\n")
+            # run algo
 
-    async def collect(self):
-        ws = self._client.get_ws_price_stream("ethbtc")
-        dp = DataPortal(ws, "hoteth")
-        curr_start_time: str = None
-        moving_avg: float = None
-        async for msg in dp.data_stream():
-            data = msg["data"]
-            kline_data = data["k"]
+    def backtest(self):
+        raw_data = self._client.get_historical_klines(
+            "ethbtc"
+        )  # defaults to 5000 1m klines
+        klines = kline_bn_to_df(list(reversed(raw_data)))
 
-            if curr_start_time != kline_data["t"]:
-                curr_start_time = kline_data["t"]
-                print("getting new moving avg")
-                history_data = self._client.get_kline("ethbtc", limit=50)
-                pd_data = pd.DataFrame(history_data)
-                pd_data = pd.Series(pd_data[4])
-                moving_avg = get_sma(pd_data, 20)
+        klines["Open Datetime"] = klines.apply(
+            lambda row: milli_to_str(row["open_time"]), axis=1
+        )
+        klines["Closed Datetime"] = klines.apply(
+            lambda row: milli_to_str(row["close_time"]), axis=1
+        )
+        klines["sma_history"] = generate_sma_list(klines["close_price"], 20)
+        klines["ema_history"] = generate_ema_list(
+            klines["close_price"], klines["sma_history"], 10
+        )
+        klines["percent_change"] = get_percent_change(klines["close_price"])
 
-            record = KlineRecord(
-                symbol=data["s"],
-                price=kline_data["c"],
-                event_time=milli_to_date(data["E"]),
-                kline_start_time=milli_to_date(kline_data["t"]),
-                kline_close_time=milli_to_date(kline_data["T"]),
-                interval=kline_data["i"],
-                first_trade_id=kline_data["f"],
-                last_trade_id=kline_data["L"],
-                open_price=float(kline_data["o"]),
-                close_price=float(kline_data["c"]),
-                high_price=float(kline_data["h"]),
-                low_price=float(kline_data["l"]),
-                base_asset_volume=float(kline_data["v"]),
-                num_of_trades=kline_data["n"],
-                kline_closed=kline_data["x"],
-                quote_asset_volume=kline_data["q"],
-                taker_buy_base_asset_volume=kline_data["V"],
-                taker_buy_quote_asset_volume=kline_data["Q"],
-                twenty_hour_moving_average=moving_avg,
-            )
-            record.save()
-            print("adding record")
+        # ------------------------------------------#
+        # ALGO
+        trade_signal = []
+        # long (1) if EMA > SMA
+        # short (0) if SMA > EMA
+        for x in range(0, len(klines["close_price"])):
+            # TODO find a way to inject the algo here, need to create a data portal for it
+            if klines["ema_history"][x] > klines["sma_history"][x]:
+                trade_signal.append(1)
+            else:
+                trade_signal.append(0)
 
-    def run_collector(self):
+        return_list = [1] * klines["close_price"].count()
+        # FIND RETURN SERIES
+        for x in range(len(klines["close_price"]) - 2, -1, -1):
+
+            if trade_signal[x] == 0:
+                return_list[x] = return_list[x + 1]
+            else:
+                # buy trade signal
+                return_list[x] = return_list[x + 1] * (1 + klines["percent_change"][x])
+        klines["trade_signal"] = trade_signal
+        klines["return_series"] = return_list
+
+        return klines
+
+    def run_worker(self, func):
         try:
-            self.loop.run_until_complete(self.collect())
-        except KeyboardInterrupt:
-            print("Interrupted")
-        finally:
-            self.stop()
-
-    def run_worker(self):
-        try:
-            self.loop.run_until_complete(self.run_algorithm())
+            self.loop.run_until_complete(func())
         except KeyboardInterrupt:
             print("Interrupted")
         finally:

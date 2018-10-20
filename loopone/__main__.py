@@ -12,25 +12,8 @@ import pprint
 def main():
     api_key, api_secret = get_credentials()
     worker = TradingEnvironment(api_key, api_secret)
-    worker.run_worker()
-    # client = BinanceClient(api_key=creds["api_key"], api_secret=creds["api_secret"])
-    # initial_time = time.time()
-    # res = client.get_kline("VETETH", interval="1h", limit=100)
-    # import ipdb
-
-    # ipdb.set_trace()
-    # closing_prices = [float(x[4]) for x in res[0:20]]
-    # print(sum(closing_prices) / 20)
-
-    # print(milli_to_date(res[-1][0]).isoformat())
-    # # pprint.pprint(res)
-    # return
-    # while True:
-    #     time.sleep(1)
-    #     if time.time() - initial_time >= 60:
-    #         break
-    #     res = client._get("ticker/price", params={"symbol": "ETHBTC"})
-    #     print(res["price"])
+    # worker.run_worker(worker.run_algorithm)
+    x = worker.backtest()
 
 
 if __name__ == "__main__":

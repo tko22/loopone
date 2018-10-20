@@ -3,3 +3,4 @@ mongoengine==0.15.3
 aiohttp==3.4.4
 pandas==0.23.4
 marshmallow==3.0.0b16
+matplotlib==3.0.0

@@ -1,6 +1,6 @@
 """Helper functions for technicals such as SMA"""
 import pandas as pd
-from typing import Union
+from typing import Union, List
 
 
 def get_volume():
@@ -58,3 +58,21 @@ def generate_ema_list(
             + ret[0],
         )
     return pd.Series(ret)
+
+
+def get_percent_change(input: pd.Series) -> pd.Series:
+    """
+    Generate percent changes per minute
+    :params panda Series of close prices
+    :
+    """
+    ret = []
+    # go until the 2nd to last moment because it should be 1 at the end of the list
+    for i in range(0, len(input) - 1):
+        # divide current price divided by the previous price minus one
+        # insert to front of list
+        ret.append(input[i] / input[i + 1] - 1)
+    ret.append(1)  # add 1 to the end of list
+
+    return pd.Series(ret)
+

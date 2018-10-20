@@ -2,13 +2,14 @@ import hashlib
 import hmac
 import time
 import asyncio
-import aiohttp
+import logging
 from typing import Dict, Callable
+from datetime import datetime
 
 import requests
-from common import convert_dict_to_request_body
-from enums import State, TradingType
-from binance_enums import KlineIntervals
+import aiohttp
+from common import convert_dict_to_request_body, interval_to_milli
+from enums import State, TradingType, KlineIntervals
 from exceptions import BinanceAPIException
 
 API_URL = "https://api.binance.com/api"
@@ -18,6 +19,8 @@ REQ_BAN_CODE = 418
 DEFAULT_TIMEOUT = 10
 PUBLIC_API_VERSION = "v1"
 PRIVATE_API_VERSION = "v3"
+
+logger = logging.getLogger(__name__)
 
 
 def toggle_real_mode(func: Callable):
@@ -194,6 +197,48 @@ class BinanceClient(object):
             },
         )
 
+    def get_historical_klines(
+        self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value, rounds: int = 5
+    ):
+        """Get Historical Klines from Binance based on 1000 kline rounds
+        If 5 rounds was given, 5000 klines will be given
+        
+        """
+        limit = 1000
+        print("Getting %d Historical Klines from binance....", limit * rounds)
+        # init our list
+        output_data = []
+
+        # convert interval to useful value in seconds
+        timeframe = interval_to_milli(interval) * limit
+
+        prev_data = self.get_kline(
+            symbol, interval=KlineIntervals.ONE_MIN.value, limit=limit
+        )
+        output_data += prev_data
+
+        # go from 1 -> rounds - 1
+        for idx in range(1, rounds):
+            # fetch the klines from start_ts up to max 500 entries or the end_ts if set
+            temp = self.get_kline(
+                symbol=symbol,
+                interval=interval,
+                start_time=prev_data[0][0] - timeframe * idx,
+                end_time=prev_data[0][6] - 60 * 1000,
+                limit=limit,
+            )
+            # handle the case where exactly the limit amount of data was returned last loop
+            if not len(temp):
+                break
+            # append this loops data to our output data
+            output_data = temp + output_data
+
+            # sleep after every 2rd call to be kind to the API
+            if idx % 2 == 0:
+                time.sleep(1)
+
+        return output_data
+
     async def get_ws_price_stream(
         self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value
     ) -> aiohttp.ClientWebSocketResponse:
@@ -206,7 +251,9 @@ class BinanceClient(object):
         await self.async_session.close()
 
     # account endpoints
-    def create_order(self, symbol: str, side: str, type: str, quantity: float, **params):
+    def create_order(
+        self, symbol: str, side: str, type: str, quantity: float, **params
+    ):
         """Send in a new order
         Any order with an icebergQty MUST have timeInForce set to GTC.
         https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#new-order--trade

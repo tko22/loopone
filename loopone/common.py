@@ -1,9 +1,11 @@
 import configparser
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from datetime import datetime
 
-import numpy as np
+import pandas as pd
 from marshmallow import Schema, fields, INCLUDE, post_dump
+
+from enums import KlineIntervals
 
 
 class KlineDataSchema(Schema):
@@ -44,10 +46,64 @@ def get_mongo_credentials(file: str = "creds.ini") -> Tuple:
 
 
 def milli_to_date(binance_time: int) -> datetime:
+    """
+    Convert binance milliseconds to datetime
+    """
     return datetime.fromtimestamp(binance_time / 1000.0)
 
 
-def kline_binance_to_dict(data: Dict) -> Dict:
+def interval_to_milli(interval: str = KlineIntervals.ONE_MIN.value) -> int:
+    """Convert a Binance interval string to milliseconds
+    :param interval: Binance interval string, e.g.: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w
+    :type interval: str
+    :return:
+        int value of interval in milliseconds
+        None if interval prefix is not a decimal integer
+        None if interval suffix is not one of m, h, d, w
+    """
+    seconds_per_unit = {"m": 60, "h": 60 * 60, "d": 24 * 60 * 60, "w": 7 * 24 * 60 * 60}
+    try:
+        if interval[-1] in seconds_per_unit:
+            return (
+                int(interval[0]) * seconds_per_unit[interval[-1]] * 1000
+            )  # multiply by 1000 seconds for milli
+        else:
+            return None
+    except ValueError:
+        return None
+
+
+def milli_to_str(time: int) -> str:
+    """Convert milliseconds to date string format ex: 09/27/2018 16:20"""
+
+    return milli_to_date(time).strftime("%m/%d/%y %H:%M")
+
+
+def kline_bn_to_df(data: List) -> pd.DataFrame:
+    """
+    Convert Binance Kline data (2-D list) into a dataframe with the labeled columns
+    """
+    return pd.DataFrame(
+        data,
+        columns=[
+            "open_time",
+            "open_price",
+            "high_price",
+            "low_price",
+            "close_price",
+            "volume",
+            "close_time",
+            "quote_asset_volume",
+            "num_of_trades",
+            "taker_buy_base_asset_volume",
+            "taker_buy_quote_asset_volume",
+            "ignore",
+        ],
+        dtype="float64",
+    )
+
+
+def kline_bn_stream_to_dict(data: Dict) -> Dict:
     kline_data = data["k"]
     return {
         "symbol": data["s"],
@@ -69,3 +125,4 @@ def kline_binance_to_dict(data: Dict) -> Dict:
         "taker_buy_base_asset_volume": kline_data["V"],
         "taker_buy_quote_asset_volume": kline_data["Q"],
     }
+
