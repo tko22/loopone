@@ -1,2 +1,4 @@
-import loopone.models.base
-from loopone.models.record import KlineRecord
+from .record import KlineRecord
+from .order import PaperTradeOrder
+
+__all__ = ["KlineRecord", "PaperTradeOrder"]

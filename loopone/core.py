@@ -1,19 +1,20 @@
 import asyncio
-import time
+import logging
+from datetime import datetime
 
 import pandas as pd
-
-from loopone.enums import TradingType, State, OrderType, KlineIntervals
-from loopone.binance import BinanceClient
-from loopone.data_portal import DataPortal
-from loopone.common import milli_to_date, kline_bn_to_df, milli_to_str
-from loopone.finance.technicals import (
+from .enums import TradingType, State, OrderType, KlineIntervals
+from .binance import BinanceClient
+from .data_portal import DataPortal
+from .data_topic import DataTopic
+from .common import milli_to_date, kline_bn_to_df, milli_to_str, connect_to_mongo
+from .finance.technicals import (
     get_sma,
     generate_ema_list,
     generate_sma_list,
     get_percent_change,
 )
-from loopone.models import KlineRecord
+from .models import KlineRecord, PaperTradeOrder
 
 
 class TradingEnvironment(object):
@@ -34,18 +35,29 @@ class TradingEnvironment(object):
             asyncio.get_event_loop()
         )  # TODO make it an event loop in which we plug the binance client in
         self._client = BinanceClient(api_key, api_secret, self.loop)
+        self.logger = logging.getLogger(__name__)
+        connect_to_mongo()
 
     async def run_algorithm(self):
         dp = DataPortal(self._client, "ethbtc")
         ctx = {}
-
+        curr_st: int = None  # current kline start time
         async for dt in dp.data_stream():
-            print("Close Price:", dt.price)
-            print("open", dt.kline_start_time)
+            print(curr_st)
+            print(dt.kline_start_time)
             print("\n")
-            # run algo
+            # compares datetime
+            if curr_st != dt.kline_start_time:
+                # new kline interval. Run algo for trade signal and make trade.
+                curr_st = dt.kline_start_time
+
+                if dt.ema() > dt.twenty_sma():
+                    self.order(dt)
+                print("Close Price:", dt.price)
+                print("open", dt.kline_start_time)
 
     def backtest(self):
+        self.logger.info("Starting backtest...")
         raw_data = self._client.get_historical_klines(
             "ethbtc"
         )  # defaults to 5000 1m klines
@@ -93,7 +105,7 @@ class TradingEnvironment(object):
         try:
             self.loop.run_until_complete(func())
         except KeyboardInterrupt:
-            print("Interrupted")
+            self.logger.info("Keyboard Interrupted")
         finally:
             self.stop()
 
@@ -106,9 +118,17 @@ class TradingEnvironment(object):
     # ---------------------------------------------------- #
     # The following functions are api functions for the algorithm
 
-    async def order(self, type: OrderType):
+    async def order(self, dt: DataTopic, type: OrderType = OrderType.MARKET):
         """Make an Order"""
-        pass
+        # TODO check if it's live or paper trading
+        new_order = PaperTradeOrder(
+            symbol=dt.symbol,
+            time_executed=datetime.now(),
+            quantity=0.3,
+            market_volume=dt.quote_asset_volume,
+            price=dt.price,
+        )
+        new_order.save()
 
     async def symbol_price(self, symbol_price: str):
         pass
@@ -123,7 +143,7 @@ class TradingEnvironment(object):
         pass
 
     def stop(self):
-        print("Stopping....")
+        self.logger.info("Stopping Trading Environment and async loop... Goodbye")
         self.loop.run_until_complete(self._client.close_session())
         self.loop.stop()
         self.loop.close()

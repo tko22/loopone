@@ -4,8 +4,9 @@ from datetime import datetime
 
 import pandas as pd
 from marshmallow import Schema, fields, INCLUDE, post_dump
+from mongoengine import connect
 
-from loopone.enums import KlineIntervals
+from .enums import KlineIntervals
 
 DEFAULT_CREDS_FILE = "creds.ini"
 
@@ -128,3 +129,8 @@ def kline_bn_stream_to_dict(data: Dict) -> Dict:
         "taker_buy_quote_asset_volume": kline_data["Q"],
     }
 
+
+def connect_to_mongo() -> None:
+    """Connect to MongoDB given the credentials in creds.ini"""
+    (db_name, mongo_url) = get_mongo_credentials()
+    connect(db_name, host=mongo_url)

@@ -9,9 +9,9 @@ from datetime import datetime
 import requests
 import aiohttp
 
-from loopone.common import convert_dict_to_request_body, interval_to_milli
-from loopone.enums import State, TradingType, KlineIntervals
-from loopone.exceptions import BinanceAPIException
+from .common import convert_dict_to_request_body, interval_to_milli
+from .enums import State, TradingType, KlineIntervals
+from .exceptions import BinanceAPIException
 
 API_URL = "https://api.binance.com/api"
 STREAM_URL = "wss://stream.binance.com:9443/"
@@ -21,7 +21,7 @@ DEFAULT_TIMEOUT = 10
 PUBLIC_API_VERSION = "v1"
 PRIVATE_API_VERSION = "v3"
 
-logger = logging.getLogger("loopone")
+logger = logging.getLogger(__name__)
 
 
 def toggle_real_mode(func: Callable):
@@ -206,7 +206,7 @@ class BinanceClient(object):
         
         """
         limit = 1000
-        logger.info("Getting %d Historical Klines from binance....", limit * rounds)
+        logger.info("Getting %d Historical Klines from binance...", limit * rounds)
         # init our list
         output_data = []
 
@@ -243,10 +243,12 @@ class BinanceClient(object):
     async def get_ws_price_stream(
         self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value
     ) -> aiohttp.ClientWebSocketResponse:
-
         lower_symbol = symbol.lower()
+        logger.info(
+            "Starting up WS stream for %s at interval %s", lower_symbol, interval
+        )
         async with self.async_session.ws_connect(
-            f"{STREAM_URL}stream?streams={symbol}@kline_{interval}"
+            f"{STREAM_URL}stream?streams={lower_symbol}@kline_{interval}"
         ) as ws:
             async for msg in ws:
                 yield msg
@@ -285,5 +287,5 @@ class BinanceClient(object):
         return self._post("order", True, data=params)
 
     async def close_session(self):
-        print("Closing session...")
+        logger.info("Closing binance client session...")
         await self.async_session.close()

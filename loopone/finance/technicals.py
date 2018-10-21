@@ -32,8 +32,9 @@ def generate_sma_list(data: pd.Series, duration: int = 20) -> pd.Series:
 
 
 def generate_ema_list(
-    closing_prices: pd.Series, sma_list: pd.Series, duration: int = 20
+    closing_prices: pd.Series, sma_list: pd.Series, duration: int = 10
 ) -> pd.Series:
+    """Returns Exponential Moving Average List given pandas series of Closing Prices."""
     # first exponential moving average reference point is simple
     # '1000' proxy for our furthest back available data
     # ema = ((current price - previous EMA) * weight) + previous EMA
@@ -63,8 +64,9 @@ def generate_ema_list(
 def get_percent_change(input: pd.Series) -> pd.Series:
     """
     Generate percent changes per minute
+
     :params panda Series of close prices
-    :
+    :returns panda Series of percent changes
     """
     ret = []
     # go until the 2nd to last moment because it should be 1 at the end of the list

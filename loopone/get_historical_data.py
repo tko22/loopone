@@ -1,10 +1,10 @@
 import csv
 import pandas as pd
 
-from loopone.binance import BinanceClient
-from loopone.common import get_credentials, milli_to_date
-from loopone.enums import KlineIntervals
-from loopone.finance.technicals import get_sma, generate_sma_list, generate_ema_list
+from .binance import BinanceClient
+from .common import get_credentials, milli_to_date
+from .enums import KlineIntervals
+from .finance.technicals import get_sma, generate_sma_list, generate_ema_list
 
 ONE_MIN_TIME_DIFF_THOUSAND_KLINE = 60_000_000
 

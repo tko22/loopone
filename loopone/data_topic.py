@@ -31,9 +31,9 @@ class DataTopic(object):
 
     def __init__(self, data: Dict, history: pd.DataFrame, sma: float = None) -> None:
 
-        kline_data = data["k"]
+        kline_data: Dict = data["k"]
 
-        self.symbol = data["s"]
+        self.symbol: str = data["s"]
         self.price = kline_data["c"]
         self.event_time = milli_to_date(data["E"])
         self.kline_start_time = milli_to_date(kline_data["t"])
@@ -41,11 +41,11 @@ class DataTopic(object):
         self.interval = kline_data["i"]
         self.first_trade_id = kline_data["f"]
         self.last_trade_id = kline_data["L"]
-        self.open_price = float(kline_data["o"])
-        self.close_price = float(kline_data["c"])
-        self.high_price = float(kline_data["h"])
-        self.low_price = float(kline_data["l"])
-        self.base_asset_volume = float(kline_data["v"])
+        self.open_price: float = float(kline_data["o"])
+        self.close_price: float = float(kline_data["c"])
+        self.high_price: float = float(kline_data["h"])
+        self.low_price: float = float(kline_data["l"])
+        self.base_asset_volume: float = float(kline_data["v"])
         self.num_of_trades = kline_data["n"]
         self.kline_closed = kline_data["x"]
         self.quote_asset_volume = kline_data["q"]
@@ -62,9 +62,11 @@ class DataTopic(object):
     # def current(self):
     #     pass
 
-    def get_twenty_sma(self) -> float:
-        data = pd.Series(self.history["close_price"])
-        return get_sma(data, 20)
+    def twenty_sma(self) -> float:
+        return self.history["sma_history"][0]
 
-    def get_ema(self):
-        pass
+    def ema(self) -> float:
+        return self.history["ema_history"][0]
+
+    def curr_percent_change(self) -> float:
+        return (self.close_price / self.history["close_price"][0]) - 1

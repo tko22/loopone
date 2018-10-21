@@ -1,1 +1,1 @@
-from loopone.__main__ import main
+from .__main__ import main
