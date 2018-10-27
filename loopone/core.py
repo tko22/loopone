@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 import pandas as pd
-from .enums import TradingType, State, OrderType, KlineIntervals
+from .enums import TradingType, State, OrderType, KlineIntervals, OrderSide
 from .binance import BinanceClient
 from .data_portal import DataPortal
 from .data_topic import DataTopic
@@ -25,10 +25,15 @@ class TradingEnvironment(object):
 
     # TODO allow api_key and secret and binance client setup to be optional
     def __init__(
-        self, api_key: str, api_secret: str, trading_type: str = TradingType.PAPER.name
+        self,
+        api_key: str,
+        api_secret: str,
+        trading_type: str = TradingType.PAPER.name,
+        verbose: bool = False,
     ) -> None:
         self.trading_type: str = trading_type
         self.state = State.STANDBY  # enum
+        self.verbose: bool = verbose
         self.__api_key: str = api_key
         self.__api_secret: str = api_secret
         self.loop: asyncio.AbstractEventLoop = (
@@ -43,18 +48,32 @@ class TradingEnvironment(object):
         ctx = {}
         curr_st: int = None  # current kline start time
         async for dt in dp.data_stream():
-            print(curr_st)
-            print(dt.kline_start_time)
-            print("\n")
+            if self.verbose:
+                self.logger.info(
+                    "New Data... %s at %s with volume %s",
+                    dt.symbol,
+                    dt.price,
+                    dt.base_asset_volume,
+                )
+            if not curr_st:
+                # handle initial
+                curr_st = dt.kline_start_time
             # compares datetime
-            if curr_st != dt.kline_start_time:
+            elif curr_st != dt.kline_start_time:
+                self.logger.info("New kline.... Getting trade signal")
                 # new kline interval. Run algo for trade signal and make trade.
                 curr_st = dt.kline_start_time
+                # compare current price with the previous kline
+                # need to compare the 2nd kline because the newly
+                # added kline is the one that just ended
+                self.logger.info("ema: %s.. sma: %s", dt.ema(1), dt.twenty_sma(1))
+                import ipdb
 
-                if dt.ema() > dt.twenty_sma():
-                    self.order(dt)
-                print("Close Price:", dt.price)
-                print("open", dt.kline_start_time)
+                ipdb.set_trace()
+                if dt.ema(1) > dt.twenty_sma(1):
+                    await self.order(dt, OrderSide.SIDE_BUY)
+                else:
+                    await self.order(dt, OrderSide.SIDE_SELL)
 
     def backtest(self):
         self.logger.info("Starting backtest...")
@@ -115,20 +134,44 @@ class TradingEnvironment(object):
     async def schedule_function(self):
         pass
 
+    def set_verbose(self, val):
+        self.logger.info("Setting verbosity from %s to %s", self.verbose, val)
+        self.verbose = val
+
+    def set_state(self):
+        pass
+
+    def stop(self):
+        self.logger.info("Stopping Trading Environment and async loop... Goodbye")
+        self.loop.run_until_complete(self._client.close_session())
+        self.loop.stop()
+        self.loop.close()
+
     # ---------------------------------------------------- #
     # The following functions are api functions for the algorithm
 
-    async def order(self, dt: DataTopic, type: OrderType = OrderType.MARKET):
+    async def order(
+        self, dt: DataTopic, order_side: OrderSide, type: OrderType = OrderType.MARKET
+    ) -> bool:
         """Make an Order"""
         # TODO check if it's live or paper trading
+        self.logger.info(
+            "%s %s at price: %s",
+            "Buying" if order_side == OrderSide.SIDE_BUY else "Selling",
+            dt.symbol,
+            dt.price,
+        )
+
         new_order = PaperTradeOrder(
             symbol=dt.symbol,
             time_executed=datetime.now(),
             quantity=0.3,
             market_volume=dt.quote_asset_volume,
             price=dt.price,
+            order_side=order_side.value,
         )
         new_order.save()
+        return True
 
     async def symbol_price(self, symbol_price: str):
         pass
@@ -141,9 +184,3 @@ class TradingEnvironment(object):
 
     async def account(self):
         pass
-
-    def stop(self):
-        self.logger.info("Stopping Trading Environment and async loop... Goodbye")
-        self.loop.run_until_complete(self._client.close_session())
-        self.loop.stop()
-        self.loop.close()

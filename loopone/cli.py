@@ -1,5 +1,6 @@
 import sys
 import re
+import runpy
 import logging
 
 import click
@@ -41,8 +42,17 @@ def main():
 @click.option(
     "-o", "output", is_flag=True, default=False, help="Output backtest data to excel."
 )
-def backtest(graph, output):
+@click.option("-f", "--file", help="path to file with algorithm")
+def backtest(graph, output, file):
     """Run a backtest for the given algorithm"""
+    imported_file = runpy.run_path(file)
+    handle_data_func = imported_file.get("handle_data")
+    # if not handle_data_func:
+    #     click.echo(
+    #         f"{file} doesn't have handle_data function. Please check if you have it."
+    #     )
+    #     return
+
     worker = TradingEnvironment(api_key, api_secret)
     result = worker.backtest()
     start_time = result["open_datetime"].iloc[-1]

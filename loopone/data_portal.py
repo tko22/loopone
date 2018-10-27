@@ -45,7 +45,9 @@ class DataPortal(object):
                     "Getting new moving avg and adding new kline entry to history..."
                 )
                 curr_start_time = kline_data["t"]
-                historic_data = self.client.get_kline(self.symbol, limit=100)
+                historic_data = self.client.get_kline(
+                    self.symbol, interval=KlineIntervals.ONE_MIN, limit=100
+                )
                 reverse_historic_data = list(
                     reversed(historic_data)
                 )  # most current on the top

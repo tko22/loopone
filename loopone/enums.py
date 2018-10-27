@@ -24,8 +24,9 @@ class OrderType(Enum):
     LIMIT_MAKER = "LIMIT_MAKER"
 
 
-SIDE_BUY = "BUY"
-SIDE_SELL = "SELL"
+class OrderSide(Enum):
+    SIDE_BUY = "BUY"
+    SIDE_SELL = "SELL"
 
 
 class OrderStatus(Enum):

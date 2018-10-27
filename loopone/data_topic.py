@@ -34,7 +34,7 @@ class DataTopic(object):
         kline_data: Dict = data["k"]
 
         self.symbol: str = data["s"]
-        self.price = kline_data["c"]
+        self.price: float = float(kline_data["c"])  # same as close price
         self.event_time = milli_to_date(data["E"])
         self.kline_start_time = milli_to_date(kline_data["t"])
         self.kline_close_time = milli_to_date(kline_data["T"])
@@ -48,7 +48,7 @@ class DataTopic(object):
         self.base_asset_volume: float = float(kline_data["v"])
         self.num_of_trades = kline_data["n"]
         self.kline_closed = kline_data["x"]
-        self.quote_asset_volume = kline_data["q"]
+        self.quote_asset_volume: float = float(kline_data["q"])
         self.taker_buy_base_asset_volume = kline_data["V"]
         self.taker_buy_quote_asset_volume = kline_data["Q"]
         self.history = history
@@ -62,11 +62,11 @@ class DataTopic(object):
     # def current(self):
     #     pass
 
-    def twenty_sma(self) -> float:
-        return self.history["sma_history"][0]
+    def twenty_sma(self, index: int = 0) -> float:
+        return self.history["sma_history"][index]
 
-    def ema(self) -> float:
-        return self.history["ema_history"][0]
+    def ema(self, index: int = 0) -> float:
+        return self.history["ema_history"][index]
 
     def curr_percent_change(self) -> float:
         return (self.close_price / self.history["close_price"][0]) - 1

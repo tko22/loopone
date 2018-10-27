@@ -2,4 +2,5 @@
 !loopone
 !creds.ini
 !requirements.txt
+!setup.py
 __pycache__/

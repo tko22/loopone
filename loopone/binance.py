@@ -178,7 +178,7 @@ class BinanceClient(object):
     def get_kline(
         self,
         symbol: str,
-        interval: str = KlineIntervals.ONE_HOUR.value,
+        interval: str = KlineIntervals.ONE_MIN,
         start_time: int = None,
         end_time: int = None,
         limit: int = 500,
@@ -191,7 +191,7 @@ class BinanceClient(object):
             "klines",
             params={
                 "symbol": symbol.upper(),
-                "interval": interval,
+                "interval": interval.value,
                 "startTime": start_time,
                 "endTime": end_time,
                 "limit": limit,
