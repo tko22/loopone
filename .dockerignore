@@ -3,4 +3,5 @@
 !creds.ini
 !requirements.txt
 !setup.py
+!MANIFEST.in
 __pycache__/

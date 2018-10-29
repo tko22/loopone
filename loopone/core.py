@@ -67,9 +67,7 @@ class TradingEnvironment(object):
                 # need to compare the 2nd kline because the newly
                 # added kline is the one that just ended
                 self.logger.info("ema: %s.. sma: %s", dt.ema(1), dt.twenty_sma(1))
-                import ipdb
 
-                ipdb.set_trace()
                 if dt.ema(1) > dt.twenty_sma(1):
                     await self.order(dt, OrderSide.SIDE_BUY)
                 else:
