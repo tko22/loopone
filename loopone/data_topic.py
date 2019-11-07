@@ -1,9 +1,12 @@
+import logging
 from typing import Dict
 
 import pandas as pd
 
 from loopone.common import milli_to_date
-from loopone.finance.technicals import get_sma
+from loopone.finance.technicals import get_sma, get_bid_ask_spread
+
+logger = logging.getLogger(__name__)
 
 
 class DataTopic(object):
@@ -27,9 +30,10 @@ class DataTopic(object):
         "taker_buy_base_asset_volume",
         "taker_buy_quote_asset_volume",
         "history",
+        "slot",
     ]
 
-    def __init__(self, data: Dict, history: pd.DataFrame, sma: float = None) -> None:
+    def __init__(self, data: Dict, history: pd.DataFrame, book: Dict) -> None:
 
         kline_data: Dict = data["k"]
 
@@ -51,7 +55,22 @@ class DataTopic(object):
         self.quote_asset_volume: float = float(kline_data["q"])
         self.taker_buy_base_asset_volume = kline_data["V"]
         self.taker_buy_quote_asset_volume = kline_data["Q"]
+        self.spread = None
         self.history = history
+
+        if self.symbol.upper() == book["symbol"]:
+            self.spread = get_bid_ask_spread(book["bidPrice"], book["askPrice"])
+        else:
+            logger.warning("Datatopic symbol: %s doesn't match with book ")
+
+    def __new__(cls, data: Dict, history: pd.DataFrame, book: Dict):
+        import ipdb
+
+        ipdb.set_trace()
+        if data["s"].upper() == book["symbol"]:
+            return super(DataTopic, cls).__new__(cls)
+        else:
+            raise ValueError
 
     # def volume(self):
     #     pass
@@ -61,6 +80,9 @@ class DataTopic(object):
 
     # def current(self):
     #     pass
+    def __getitem__(self, idx) -> pd.Series:
+        """Returns row `idx` of the historic data"""
+        return self.history.iloc[idx]
 
     def twenty_sma(self, index: int = 0) -> float:
         return self.history["sma_history"][index]

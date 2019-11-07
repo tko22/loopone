@@ -9,9 +9,9 @@ from datetime import datetime
 import requests
 import aiohttp
 
-from .common import convert_dict_to_request_body, interval_to_milli
-from .enums import State, TradingType, KlineIntervals
-from .exceptions import BinanceAPIException
+from loopone.common import convert_dict_to_request_body, interval_to_milli
+from loopone.enums import State, TradingType, KlineIntervals
+from loopone.exceptions import BinanceAPIException
 
 API_URL = "https://api.binance.com/api"
 STREAM_URL = "wss://stream.binance.com:9443/"
@@ -59,6 +59,10 @@ class BinanceClient(object):
         )
         return session
 
+    async def close_session(self):
+        logger.info("Closing binance client session...")
+        await self.async_session.close()
+
     def _generate_signature(
         self, query_string: str = None, payload: Dict = None
     ) -> str:
@@ -90,7 +94,18 @@ class BinanceClient(object):
             raise BinanceAPIException(response)
         return response.json()
 
-    def _request(self, method: str, uri: str, signed: bool = True, **kwargs) -> None:
+    async def _async_handle_response(self, response: requests.Response) -> Dict:
+        if response.status != requests.codes.ok:
+            if (
+                response.status == REQ_RATE_VIOLATION_CODE
+                or response.status == REQ_BAN_CODE
+            ):
+                self.change_state(State.STANDBY.name)
+
+            raise BinanceAPIException(response)
+        return await response.json()
+
+    def _request(self, method: str, uri: str, signed: bool = True, **kwargs) -> Dict:
         # We don't use query strings, opting to always passing parameters through the request body
         new_kwargs = kwargs
         # set default requests timeout
@@ -107,6 +122,26 @@ class BinanceClient(object):
         response = getattr(self.session, method)(uri, **new_kwargs)
         return self._handle_response(response)
 
+    async def _async_request(
+        self, method: str, uri: str, signed: bool = True, **kwargs
+    ) -> Dict:
+        # We don't use query strings, opting to always passing parameters through the request body
+        new_kwargs = kwargs
+        # set default requests timeout
+        new_kwargs["timeout"] = DEFAULT_TIMEOUT
+
+        if signed:
+            if not new_kwargs.get("data"):
+                new_kwargs["data"] = {}
+            new_kwargs["data"]["timestamp"] = int(time.time() * 1000)
+            new_kwargs["data"]["signature"] = self._generate_signature(
+                payload=kwargs["data"]
+            )
+
+        response = await getattr(self.async_session, method)(uri, **new_kwargs)
+
+        return await self._async_handle_response(response)
+
     def _create_api_uri(
         self, path, version: str = PUBLIC_API_VERSION, signed: bool = False
     ) -> str:
@@ -118,6 +153,16 @@ class BinanceClient(object):
     ):
         uri = self._create_api_uri(path, version, signed)
         return self._request(method, uri, signed, **kwargs)
+
+    async def _async_get(
+        self,
+        path: str,
+        version: str = PUBLIC_API_VERSION,
+        signed: bool = False,
+        **kwargs,
+    ) -> Dict:
+        uri = self._create_api_uri(path, version, signed)
+        return await self._async_request("get", uri, signed, **kwargs)
 
     def _get(
         self,
@@ -155,16 +200,10 @@ class BinanceClient(object):
     ) -> Dict:
         return self._request_api("delete", path, version, signed, **kwargs)
 
-    def change_state(self, state: str) -> bool:
-        if state in State.__members__:
-            self.state = State[state]
-            return True
-        return False
+    ##################
+    #  api wrappers  #
+    ##################
 
-    def check_state(self) -> str:
-        return self.state.name
-
-    # api wrappers
     def get_ticker_price(self, symbol: str) -> Dict:
         return self._get("ticker/price", params={"symbol": symbol})
 
@@ -178,7 +217,7 @@ class BinanceClient(object):
     def get_kline(
         self,
         symbol: str,
-        interval: str = KlineIntervals.ONE_MIN,
+        interval: str = KlineIntervals.ONE_MIN.value,
         start_time: int = None,
         end_time: int = None,
         limit: int = 500,
@@ -191,12 +230,81 @@ class BinanceClient(object):
             "klines",
             params={
                 "symbol": symbol.upper(),
-                "interval": interval.value,
+                "interval": interval,
                 "startTime": start_time,
                 "endTime": end_time,
                 "limit": limit,
             },
         )
+
+    async def get_book_ticker(self, symbol: str) -> Dict:
+        """Get Best price/qty on the order book for a symbol or symbols.
+
+        Link to API Docs: https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#symbol-order-book-ticker
+        """
+        return await self._async_get(
+            "ticker/bookTicker",
+            version=PRIVATE_API_VERSION,
+            params={"symbol": symbol.upper()},
+        )
+
+    ############
+    # streams #
+    ###########
+
+    async def get_ws_price_stream(
+        self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value
+    ) -> aiohttp.ClientWebSocketResponse:
+        """Yields websocket Kline stream and closes it at the end
+
+        :param symbol
+        :param interval 
+        """
+        lower_symbol = symbol.lower()
+        logger.info(
+            "Starting up WS stream for %s at interval %s", lower_symbol, interval
+        )
+        async with self.async_session.ws_connect(
+            f"{STREAM_URL}stream?streams={lower_symbol}@kline_{interval}"
+        ) as ws:
+            async for msg in ws:
+                yield msg
+        await self.async_session.close()
+
+    ######################
+    #  account endpoints #
+    ######################
+
+    def create_order(
+        self, symbol: str, side: str, type: str, quantity: float, **params
+    ):
+        """Send in a new order
+        Any order with an icebergQty MUST have timeInForce set to GTC.
+        https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#new-order--trade
+        :param symbol: required
+        :type symbol: str
+        :param side: required
+        :type side: str
+        :param type: required
+        :type type: str
+        :param timeInForce: required if limit order
+        :type timeInForce: str
+        :param quantity: required
+        :type quantity: decimal
+        :param price: required
+        :type price: str
+        :param newClientOrderId: A unique id for the order. Automatically generated if not sent.
+        :type newClientOrderId: str
+        :param icebergQty: Used with LIMIT, STOP_LOSS_LIMIT, and TAKE_PROFIT_LIMIT to create an iceberg order.
+        :type icebergQty: decimal
+        :param newOrderRespType: Set the response JSON. ACK, RESULT, or FULL; default: RESULT.
+        :type newOrderRespType: str
+        :param recvWindow: the number of milliseconds the request is valid for
+        :type recvWindow: int
+        :returns: API response
+        
+        """
+        return self._post("order", True, data=params)
 
     def get_historical_klines(
         self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value, rounds: int = 5
@@ -240,52 +348,12 @@ class BinanceClient(object):
         logger.info("Finished getting historical klines.")
         return output_data
 
-    async def get_ws_price_stream(
-        self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value
-    ) -> aiohttp.ClientWebSocketResponse:
-        lower_symbol = symbol.lower()
-        logger.info(
-            "Starting up WS stream for %s at interval %s", lower_symbol, interval
-        )
-        async with self.async_session.ws_connect(
-            f"{STREAM_URL}stream?streams={lower_symbol}@kline_{interval}"
-        ) as ws:
-            async for msg in ws:
-                yield msg
-        await self.async_session.close()
+    # TODO actually use these functions and state
+    def change_state(self, state: str) -> bool:
+        if state in State.__members__:
+            self.state = State[state]
+            return True
+        return False
 
-    # account endpoints
-    def create_order(
-        self, symbol: str, side: str, type: str, quantity: float, **params
-    ):
-        """Send in a new order
-        Any order with an icebergQty MUST have timeInForce set to GTC.
-        https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#new-order--trade
-        :param symbol: required
-        :type symbol: str
-        :param side: required
-        :type side: str
-        :param type: required
-        :type type: str
-        :param timeInForce: required if limit order
-        :type timeInForce: str
-        :param quantity: required
-        :type quantity: decimal
-        :param price: required
-        :type price: str
-        :param newClientOrderId: A unique id for the order. Automatically generated if not sent.
-        :type newClientOrderId: str
-        :param icebergQty: Used with LIMIT, STOP_LOSS_LIMIT, and TAKE_PROFIT_LIMIT to create an iceberg order.
-        :type icebergQty: decimal
-        :param newOrderRespType: Set the response JSON. ACK, RESULT, or FULL; default: RESULT.
-        :type newOrderRespType: str
-        :param recvWindow: the number of milliseconds the request is valid for
-        :type recvWindow: int
-        :returns: API response
-        
-        """
-        return self._post("order", True, data=params)
-
-    async def close_session(self):
-        logger.info("Closing binance client session...")
-        await self.async_session.close()
+    def check_state(self) -> str:
+        return self.state.name

@@ -1,7 +1,7 @@
 import csv
 import pandas as pd
 
-from .binance import BinanceClient
+from .gateways.binance import BinanceClient
 from .common import get_credentials, milli_to_date
 from .enums import KlineIntervals
 from .finance.technicals import get_sma, generate_sma_list, generate_ema_list

@@ -1,4 +1,3 @@
-import sys
 import re
 import runpy
 import logging
@@ -9,26 +8,8 @@ import matplotlib.pyplot as plt
 from .common import get_credentials, milli_to_date
 from .core import TradingEnvironment
 
-DEFAULT_LOG_FILE = "loopone.log"
-DEFAULT_FORMATTER = colorlog.ColoredFormatter(
-    "[%(asctime)s: %(log_color)s%(levelname)s%(reset)s]: [%(name)s]: %(log_color)s%(message)s",
-    reset=True,
-)
-
-# logging
-logger = logging.getLogger()  # get root logger
-fh = logging.FileHandler(DEFAULT_LOG_FILE)
-logger.setLevel(logging.DEBUG)
-fh.setFormatter(DEFAULT_FORMATTER)
-
-ch = logging.StreamHandler(sys.stdout)
-ch.setFormatter(DEFAULT_FORMATTER)
-logger.setLevel(logging.INFO)
-logger.addHandler(fh)
-logger.addHandler(ch)
-
-
 api_key, api_secret = get_credentials()
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -45,8 +26,9 @@ def main():
 @click.option("-f", "--file", help="path to file with algorithm")
 def backtest(graph, output, file):
     """Run a backtest for the given algorithm"""
-    imported_file = runpy.run_path(file)
-    handle_data_func = imported_file.get("handle_data")
+    # imported_file = runpy.run_path(file)
+    # handle_data_func = imported_file.get("handle_data")
+
     # if not handle_data_func:
     #     click.echo(
     #         f"{file} doesn't have handle_data function. Please check if you have it."

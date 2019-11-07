@@ -33,8 +33,13 @@ class DataPortal(object):
     async def data_stream(self) -> Dict:
         history: pd.DataFrame() = None
         curr_start_time: int = None
+        book = await self.client.get_book_ticker(self.symbol)
         async for msg in self.stream:
             data = json.loads(msg.data)["data"]
+
+            # update book every 3 seconds, updates when kline changes as well - look below
+            if curr_start_time % 3 == 0:
+                book = await self.client.get_book_ticker(self.symbol)
 
             kline_data = data["k"]
             # compares int
@@ -44,6 +49,10 @@ class DataPortal(object):
                 logger.info(
                     "Getting new moving avg and adding new kline entry to history..."
                 )
+                book = await self.client.get_book_ticker(
+                    self.symbol
+                )  # overwrite book that was set
+
                 curr_start_time = kline_data["t"]
                 historic_data = self.client.get_kline(
                     self.symbol, interval=KlineIntervals.ONE_MIN, limit=100
@@ -66,8 +75,9 @@ class DataPortal(object):
                 history["close_datetime"] = history.apply(
                     lambda row: milli_to_str(row["close_time"]), axis=1
                 )
+
             # initialize the datatopic object for the next streamed price data
-            dt = DataTopic(data=data, history=history)  # Note: history
+            dt = DataTopic(data=data, history=history, book=book)  # Note: history
 
             yield dt
 

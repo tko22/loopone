@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pandas as pd
 from .enums import TradingType, State, OrderType, KlineIntervals, OrderSide
-from .binance import BinanceClient
+from .gateways.binance import BinanceClient
 from .data_portal import DataPortal
 from .data_topic import DataTopic
 from .common import milli_to_date, kline_bn_to_df, milli_to_str, connect_to_mongo
@@ -32,8 +32,8 @@ class TradingEnvironment(object):
         verbose: bool = False,
     ) -> None:
         self.trading_type: str = trading_type
-        self.state = State.STANDBY  # enum
-        self.verbose: bool = verbose
+        self._state = State.STANDBY  # enum
+        self._verbose: bool = verbose
         self.__api_key: str = api_key
         self.__api_secret: str = api_secret
         self.loop: asyncio.AbstractEventLoop = (
@@ -55,6 +55,10 @@ class TradingEnvironment(object):
                     dt.price,
                     dt.base_asset_volume,
                 )
+            val = await self._client.get_book_ticker("ethbtc")
+            import ipdb
+
+            ipdb.set_trace()
             if not curr_st:
                 # handle initial
                 curr_st = dt.kline_start_time
@@ -132,9 +136,13 @@ class TradingEnvironment(object):
     async def schedule_function(self):
         pass
 
-    def set_verbose(self, val):
-        self.logger.info("Setting verbosity from %s to %s", self.verbose, val)
-        self.verbose = val
+    @property
+    def verbose(self) -> bool:
+        return self._verbose
+
+    def set_verbose(self, val: bool):
+        self.logger.info("Setting verbosity from %s to %s", self._verbose, val)
+        self._verbose = val
 
     def set_state(self):
         pass

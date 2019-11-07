@@ -78,3 +78,6 @@ def get_percent_change(input: pd.Series) -> pd.Series:
 
     return pd.Series(ret)
 
+
+def get_bid_ask_spread(bid: float, ask: float) -> float:
+    return ask - bid
