@@ -217,7 +217,7 @@ class BinanceClient(object):
     def get_kline(
         self,
         symbol: str,
-        interval: str = KlineIntervals.ONE_MIN.value,
+        interval: KlineIntervals = KlineIntervals.ONE_MIN,
         start_time: int = None,
         end_time: int = None,
         limit: int = 500,
@@ -230,7 +230,7 @@ class BinanceClient(object):
             "klines",
             params={
                 "symbol": symbol.upper(),
-                "interval": interval,
+                "interval": interval.value,
                 "startTime": start_time,
                 "endTime": end_time,
                 "limit": limit,
@@ -253,19 +253,47 @@ class BinanceClient(object):
     ###########
 
     async def get_ws_price_stream(
-        self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value
+        self, symbol: str, interval: KlineIntervals = KlineIntervals.ONE_MIN
     ) -> aiohttp.ClientWebSocketResponse:
         """Yields websocket Kline stream and closes it at the end
+
+        Link to API Docs: https://github.com/binance-exchange/binance-official-api-docs/blob/master/web-socket-streams.md#klinecandlestick-streams
+
+        Each Payload:
+        {
+            "e": "kline",     // Event type
+            "E": 123456789,   // Event time
+            "s": "BNBBTC",    // Symbol
+            "k": {
+                "t": 123400000, // Kline start time
+                "T": 123460000, // Kline close time
+                "s": "BNBBTC",  // Symbol
+                "i": "1m",      // Interval
+                "f": 100,       // First trade ID
+                "L": 200,       // Last trade ID
+                "o": "0.0010",  // Open price
+                "c": "0.0020",  // Close price
+                "h": "0.0025",  // High price
+                "l": "0.0015",  // Low price
+                "v": "1000",    // Base asset volume
+                "n": 100,       // Number of trades
+                "x": false,     // Is this kline closed?
+                "q": "1.0000",  // Quote asset volume
+                "V": "500",     // Taker buy base asset volume
+                "Q": "0.500",   // Taker buy quote asset volume
+                "B": "123456"   // Ignore
+            }
+        }
 
         :param symbol
         :param interval 
         """
         lower_symbol = symbol.lower()
         logger.info(
-            "Starting up WS stream for %s at interval %s", lower_symbol, interval
+            "Starting up WS stream for %s at interval %s", lower_symbol, interval.value
         )
         async with self.async_session.ws_connect(
-            f"{STREAM_URL}stream?streams={lower_symbol}@kline_{interval}"
+            f"{STREAM_URL}stream?streams={lower_symbol}@kline_{interval.value}"
         ) as ws:
             async for msg in ws:
                 yield msg
@@ -307,7 +335,10 @@ class BinanceClient(object):
         return self._post("order", True, data=params)
 
     def get_historical_klines(
-        self, symbol: str, interval: str = KlineIntervals.ONE_MIN.value, rounds: int = 5
+        self,
+        symbol: str,
+        interval: KlineIntervals = KlineIntervals.ONE_MIN,
+        rounds: int = 5,
     ):
         """Get Historical Klines from Binance based on 1000 kline rounds
         If 5 rounds was given, 5000 klines will be given
@@ -319,11 +350,9 @@ class BinanceClient(object):
         output_data = []
 
         # convert interval to useful value in seconds
-        timeframe = interval_to_milli(interval) * limit
+        timeframe = interval_to_milli(interval.value) * limit
 
-        prev_data = self.get_kline(
-            symbol, interval=KlineIntervals.ONE_MIN.value, limit=limit
-        )
+        prev_data = self.get_kline(symbol, interval=interval, limit=limit)
         output_data += prev_data
 
         # go from 1 -> rounds - 1

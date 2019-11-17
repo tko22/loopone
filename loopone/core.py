@@ -56,26 +56,29 @@ class TradingEnvironment(object):
                     dt.base_asset_volume,
                 )
             val = await self._client.get_book_ticker("ethbtc")
-            import ipdb
 
-            ipdb.set_trace()
             if not curr_st:
                 # handle initial
                 curr_st = dt.kline_start_time
-            # compares datetime
-            elif curr_st != dt.kline_start_time:
-                self.logger.info("New kline.... Getting trade signal")
-                # new kline interval. Run algo for trade signal and make trade.
-                curr_st = dt.kline_start_time
-                # compare current price with the previous kline
-                # need to compare the 2nd kline because the newly
-                # added kline is the one that just ended
-                self.logger.info("ema: %s.. sma: %s", dt.ema(1), dt.twenty_sma(1))
+                continue
+            # compares datetime, if datetime is the same, ignore and continue
+            if curr_st == dt.kline_start_time:
+                continue
 
-                if dt.ema(1) > dt.twenty_sma(1):
-                    await self.order(dt, OrderSide.SIDE_BUY)
-                else:
-                    await self.order(dt, OrderSide.SIDE_SELL)
+            # ------------------------------------------#
+            # new kline in new interval -> perform algorithm
+            self.logger.info("New kline.... Getting trade signal")
+            # new kline interval. Run algo for trade signal and make trade.
+            curr_st = dt.kline_start_time
+            # compare current price with the previous kline
+            # need to compare the 2nd kline because the newly
+            # added kline is the one that just ended
+            self.logger.info("ema: %s.. sma: %s", dt.ema(1), dt.twenty_sma(1))
+
+            if dt.ema(1) > dt.twenty_sma(1):
+                await self.order(dt, OrderSide.SIDE_BUY)
+            else:
+                await self.order(dt, OrderSide.SIDE_SELL)
 
     def backtest(self):
         self.logger.info("Starting backtest...")
@@ -167,16 +170,20 @@ class TradingEnvironment(object):
             dt.symbol,
             dt.price,
         )
+        try:
 
-        new_order = PaperTradeOrder(
-            symbol=dt.symbol,
-            time_executed=datetime.now(),
-            quantity=0.3,
-            market_volume=dt.quote_asset_volume,
-            price=dt.price,
-            order_side=order_side.value,
-        )
-        new_order.save()
+            new_order = PaperTradeOrder(
+                symbol=dt.symbol,
+                time_executed=datetime.now(),
+                quantity=0.3,
+                market_volume=dt.quote_asset_volume,
+                price=dt.price,
+                order_side=order_side.value,
+            )
+            new_order.save()
+        except Exception as e:
+            self.logger.exception("Failed to make Order...")
+            return False
         return True
 
     async def symbol_price(self, symbol_price: str):

@@ -13,6 +13,7 @@ from loopone.finance.technicals import (
     get_percent_change,
 )
 from loopone.enums import KlineIntervals
+from loopone.gateways.binance import BinanceClient
 
 logger = logging.getLogger(__name__)
 # TODO Make requests for additional information asynchrounous, adding them into a list of tasks
@@ -20,19 +21,23 @@ logger = logging.getLogger(__name__)
 
 class DataPortal(object):
     def __init__(
-        self, client, symbol: str, collect: bool = False, num_of_periods: int = 20
+        self,
+        client: BinanceClient,
+        symbol: str,
+        collect: bool = False,
+        num_of_periods: int = 20,
     ):
         self.symbol = symbol
         self.client = client
         self.stream = client.get_ws_price_stream(
-            symbol, interval=KlineIntervals.ONE_MIN.value
+            symbol, interval=KlineIntervals.ONE_MIN
         )
         self.collect = collect  # change this to trading type later
         self.num_of_periods = num_of_periods
 
-    async def data_stream(self) -> Dict:
+    async def data_stream(self) -> DataTopic:
         history: pd.DataFrame() = None
-        curr_start_time: int = None
+        curr_start_time: int = 0
         book = await self.client.get_book_ticker(self.symbol)
         async for msg in self.stream:
             data = json.loads(msg.data)["data"]
@@ -42,7 +47,8 @@ class DataPortal(object):
                 book = await self.client.get_book_ticker(self.symbol)
 
             kline_data = data["k"]
-            # compares int
+
+            # new kline entry - based on interval. Stream
             if curr_start_time != kline_data["t"]:
                 # TODO instead of replacing history and recalculating everything, we can just add the new kline
 

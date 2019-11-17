@@ -1,12 +1,6 @@
-def handle_data():
+import pandas as pd
+
+
+def handle_data(data):
+    # algorithm
     pass
-
-
-import matplotlib
-import matplotlib.pyplot as plt
-import numpy as np
-
-x = np.linspace(-4 * np.pi, 4 * np.pi)
-y = np.sin(x)
-plt.plot(x, y, ".-")
-plt.show()
