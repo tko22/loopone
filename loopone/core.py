@@ -14,7 +14,8 @@ from .finance.technicals import (
     generate_sma_list,
     get_percent_change,
 )
-from .models import KlineRecord, PaperTradeOrder
+from loopone.models import KlineRecord, PaperTradeOrder
+from loopone.account import Portfolio
 
 
 class TradingEnvironment(object):
@@ -36,12 +37,15 @@ class TradingEnvironment(object):
         self._verbose: bool = verbose
         self.__api_key: str = api_key
         self.__api_secret: str = api_secret
+
         self.loop: asyncio.AbstractEventLoop = (
             asyncio.get_event_loop()
         )  # TODO make it an event loop in which we plug the binance client in
         self._client = BinanceClient(api_key, api_secret, self.loop)
         self.logger = logging.getLogger(__name__)
         connect_to_mongo()
+
+        self.portfolio = Portfolio(capital_base=10000, client=self._client)
 
     async def run_algorithm(self):
         dp = DataPortal(self._client, "ethbtc")
@@ -56,7 +60,6 @@ class TradingEnvironment(object):
                     dt.base_asset_volume,
                 )
             val = await self._client.get_book_ticker("ethbtc")
-
             if not curr_st:
                 # handle initial
                 curr_st = dt.kline_start_time

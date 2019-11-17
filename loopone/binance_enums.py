@@ -18,3 +18,6 @@ class KlineIntervals(Enum):
     ONE_WEEK = "1w"
     ONE_MONTH = "1M"
 
+
+ETH_BTC = "ethbtc"
+BTC = "btc"

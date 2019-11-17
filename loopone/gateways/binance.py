@@ -11,7 +11,7 @@ import aiohttp
 
 from loopone.common import convert_dict_to_request_body, interval_to_milli
 from loopone.enums import State, TradingType, KlineIntervals
-from loopone.exceptions import BinanceAPIException
+from loopone.exceptions import BinanceRegAPIException, BinanceAsyncAPIException
 
 API_URL = "https://api.binance.com/api"
 STREAM_URL = "wss://stream.binance.com:9443/"
@@ -91,7 +91,7 @@ class BinanceClient(object):
             ):
                 self.change_state(State.STANDBY.name)
 
-            raise BinanceAPIException(response)
+            raise BinanceRegAPIException(response)
         return response.json()
 
     async def _async_handle_response(self, response: requests.Response) -> Dict:
@@ -102,7 +102,16 @@ class BinanceClient(object):
             ):
                 self.change_state(State.STANDBY.name)
 
-            raise BinanceAPIException(response)
+            try:
+                json_res = await response.json()
+            except ValueError:
+                raise BinanceAsyncAPIException(
+                    response,
+                    None,
+                    f"Invalid JSON error message from Binance: {response.text}",
+                )
+            else:
+                raise BinanceAsyncAPIException(response, json_res, json_res["msg"])
         return await response.json()
 
     def _request(self, method: str, uri: str, signed: bool = True, **kwargs) -> Dict:
@@ -137,7 +146,6 @@ class BinanceClient(object):
             new_kwargs["data"]["signature"] = self._generate_signature(
                 payload=kwargs["data"]
             )
-
         response = await getattr(self.async_session, method)(uri, **new_kwargs)
 
         return await self._async_handle_response(response)
@@ -204,15 +212,19 @@ class BinanceClient(object):
     #  api wrappers  #
     ##################
 
-    def get_ticker_price(self, symbol: str) -> Dict:
-        return self._get("ticker/price", params={"symbol": symbol})
+    async def get_ticker_price(self, symbol: str) -> Dict:
+        """Get Price of Asset (symbol = ETHBTC)
+
+        https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#symbol-price-ticker
+        """
+        return await self._async_get("ticker/price", params={"symbol": symbol.upper()})
 
     def get_ticker_24hr_change(self, symbol: str) -> Dict:
         """Get 24hr change given a symbol
 
         https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#24hr-ticker-price-change-statistics
         """
-        return self._get("24hr", params={"symbol": symbol})
+        return self._get("24hr", params={"symbol": symbol.upper()})
 
     def get_kline(
         self,
