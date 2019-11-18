@@ -1,8 +1,11 @@
 import time
+from datetime import datetime
 from collections import defaultdict
 
-from loopone.enums import OrderSide
+from loopone.enums import OrderSide, TradingType
+from loopone.data_topic import DataTopic
 from loopone.gateways.binance import BinanceClient
+from loopone.models import KlineRecord, PaperTradeOrder
 
 # TODO: make positions and portfolio persistant
 class AssetPositions(object):
@@ -43,7 +46,10 @@ class AssetPositions(object):
 
 class Portfolio(object):
     def __init__(
-        self, capital_base: float, client: BinanceClient, testing: bool = True
+        self,
+        capital_base: float,
+        client: BinanceClient,
+        trading_type: TradingType = TradingType.PAPER,
     ):
         self._client = client
 
@@ -55,13 +61,35 @@ class Portfolio(object):
         self.start_date = time.time()  # unix timestamp of the current time
         self.positions_exposure = 0.0  # adding this for now
 
-        self.testing = testing
+        self.trading_type = trading_type
 
     def change_position(
-        self, asset: str, quantity: float, price: float, order_side: OrderSide
+        self,
+        asset: str,
+        quantity: float,
+        price: float,
+        order_side: OrderSide,
+        dt: DataTopic,
     ):
         total_value = price * quantity
         # TODO: validate inputs (i.e. whether asset is valid)
+
+        # --------------------------------- #
+
+        # for both sell and buy
+        if self.trading_type == TradingType.PAPER:
+            new_order = PaperTradeOrder(
+                symbol=asset,
+                time_executed=datetime.now(),
+                quantity=0.3,
+                market_volume=dt.quote_asset_volume,
+                price=price,
+                order_side=order_side.value,
+            )
+            new_order.save()
+
+        if self.trading_type == TradingType.REAL_TRADE:
+            pass
 
         # BUY
         if order_side == OrderSide.SIDE_BUY:
@@ -76,7 +104,6 @@ class Portfolio(object):
 
             self.asset_positions[asset].add_position(quantity=quantity, price=price)
             self.cash -= total_value
-            return
 
         # ---------------------------------- #
         # SELL

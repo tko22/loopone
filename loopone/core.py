@@ -3,12 +3,12 @@ import logging
 from datetime import datetime
 
 import pandas as pd
-from .enums import TradingType, State, OrderType, KlineIntervals, OrderSide
-from .gateways.binance import BinanceClient
-from .data_portal import DataPortal
-from .data_topic import DataTopic
-from .common import milli_to_date, kline_bn_to_df, milli_to_str, connect_to_mongo
-from .finance.technicals import (
+from loopone.enums import TradingType, State, OrderType, KlineIntervals, OrderSide
+from loopone.gateways.binance import BinanceClient
+from loopone.data_portal import DataPortal
+from loopone.data_topic import DataTopic
+from loopone.common import milli_to_date, kline_bn_to_df, milli_to_str, connect_to_mongo
+from loopone.finance.technicals import (
     get_sma,
     generate_ema_list,
     generate_sma_list,
@@ -29,10 +29,10 @@ class TradingEnvironment(object):
         self,
         api_key: str,
         api_secret: str,
-        trading_type: str = TradingType.PAPER.name,
+        trading_type: TradingType = TradingType.PAPER,
         verbose: bool = False,
     ) -> None:
-        self.trading_type: str = trading_type
+        self.trading_type: TradingType = trading_type
         self._state = State.STANDBY  # enum
         self._verbose: bool = verbose
         self.__api_key: str = api_key
@@ -45,7 +45,9 @@ class TradingEnvironment(object):
         self.logger = logging.getLogger(__name__)
         connect_to_mongo()
 
-        self.portfolio = Portfolio(capital_base=10000, client=self._client)
+        self.portfolio = Portfolio(
+            capital_base=10000, client=self._client, trading_type=trading_type
+        )
 
     async def run_algorithm(self):
         dp = DataPortal(self._client, "ethbtc")
@@ -78,10 +80,11 @@ class TradingEnvironment(object):
             # added kline is the one that just ended
             self.logger.info("ema: %s.. sma: %s", dt.ema(1), dt.twenty_sma(1))
 
+            # TODO decide on how much to buy
             if dt.ema(1) > dt.twenty_sma(1):
-                await self.order(dt, OrderSide.SIDE_BUY)
+                await self.order(dt, OrderSide.SIDE_BUY, 0.3)
             else:
-                await self.order(dt, OrderSide.SIDE_SELL)
+                await self.order(dt, OrderSide.SIDE_SELL, 0.3)
 
     def backtest(self):
         self.logger.info("Starting backtest...")
@@ -163,10 +166,16 @@ class TradingEnvironment(object):
     # The following functions are api functions for the algorithm
 
     async def order(
-        self, dt: DataTopic, order_side: OrderSide, type: OrderType = OrderType.MARKET
+        self,
+        dt: DataTopic,
+        order_side: OrderSide,
+        quantity: float,
+        type: OrderType = OrderType.MARKET,
     ) -> bool:
         """Make an Order"""
-        # TODO check if it's live or paper trading
+        # TODO 1) check if it's live or paper trading,
+        # 2) handle limit orders
+        # 3) get price when you actually buy it if real
         self.logger.info(
             "%s %s at price: %s",
             "Buying" if order_side == OrderSide.SIDE_BUY else "Selling",
@@ -174,17 +183,14 @@ class TradingEnvironment(object):
             dt.price,
         )
         try:
-
-            new_order = PaperTradeOrder(
-                symbol=dt.symbol,
-                time_executed=datetime.now(),
-                quantity=0.3,
-                market_volume=dt.quote_asset_volume,
+            self.portfolio.change_position(
+                asset=dt.symbol,
                 price=dt.price,
-                order_side=order_side.value,
+                quantity=quantity,
+                order_side=order_side,
+                dt=dt,
             )
-            new_order.save()
-        except Exception as e:
+        except Exception:
             self.logger.exception("Failed to make Order...")
             return False
         return True

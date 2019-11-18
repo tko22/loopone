@@ -134,3 +134,18 @@ def connect_to_mongo() -> None:
     """Connect to MongoDB given the credentials in creds.ini"""
     (db_name, mongo_url) = get_mongo_credentials()
     connect(db_name, host=mongo_url)
+
+
+def get_quote_asset(symbol: str) -> str:
+    """
+    Get Quote/counter asset, the asset you are trading
+    """
+    # TODO: validate if symbol is a valid symbol (6 characters + is part of symbol list)
+    return symbol[:3]
+
+
+def get_base_asset(symbol: str) -> str:
+    """
+    Get Base Asset, the value of quote asset is the based on
+    """
+    return symbol[3:]
