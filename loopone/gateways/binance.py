@@ -60,7 +60,7 @@ class BinanceClient(object):
         return session
 
     async def close_session(self):
-        logger.info("Closing binance client session...")
+        logger.warning("Closing binance client session...")
         await self.async_session.close()
 
     def _generate_signature(

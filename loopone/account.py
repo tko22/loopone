@@ -20,7 +20,7 @@ class AssetPositions(object):
     def __init__(self, asset: str, base_asset: str = "BTC"):
         self.asset = asset
         self.base_asset = base_asset
-        self.total_quantity = 0
+        self.total_quantity: float = 0.0
         self.avg_price_bought = None
         self.positions = []  # TODO maybe make it a heap for better runtime?
 
@@ -99,7 +99,7 @@ class Portfolio(object):
         self._client = client
 
         self.starting_cash: float = capital_base
-        self.cash: float = capital_base  # cash as in BTC
+        self.__cash: float = capital_base  # cash as in BTC
         self.cash_flow: float = 0.0
         self.asset_positions: Dict[AssetPositions] = {}
 
@@ -154,7 +154,7 @@ class Portfolio(object):
 
         # BUY
         if order_side == OrderSide.SIDE_BUY:
-            if total_value > self.cash:
+            if total_value > self.__cash:
                 raise ValueError(
                     f"Not enough Cash. Cannot buy {quantity} {asset} for {price}"
                 )
@@ -164,7 +164,7 @@ class Portfolio(object):
                 self.asset_positions[asset] = AssetPositions(asset)
 
             self.asset_positions[asset].buy(quantity=quantity, price=price)
-            self.cash -= total_value
+            self.__cash -= total_value
 
         # ---------------------------------- #
         # SELL
@@ -181,7 +181,7 @@ class Portfolio(object):
 
             # valid inputs, sell
             self.asset_positions[asset].sell(quantity, price)
-            self.cash += total_value
+            self.__cash += total_value
 
     #  ---------------------------------- #
     # Functions that measure value of portfolio - subject to asset prices, which fluctuate
@@ -191,7 +191,7 @@ class Portfolio(object):
         Calculates value of portfolio (includes asset positions + cash)
         """
         assets_value = await self.get_asset_positions_value()
-        return self.cash + assets_value
+        return self.__cash + assets_value
 
     async def get_asset_positions_value(self) -> float:
         """
@@ -199,13 +199,14 @@ class Portfolio(object):
         """
         total_val = 0.0
         for asset, asset_pos in self.asset_positions.items():
-            asset_price = await self._client.get_ticker_price(
-                asset + "btc"
-            )  # get current price
+            res = await self._client.get_ticker_price(asset)  # get current price
+            asset_price = float(res.get("price"))
+
             # addition of "btc" string is needed to include base asset
             # under assumption that base asset is BTC, calculates BTC value
             # TODO: change to be dynamic based on base_asset
             total_val += asset_pos.get_total_value(asset_price)
+        return total_val
 
     async def get_returns(self) -> float:
         """
@@ -214,3 +215,16 @@ class Portfolio(object):
         portfolio_val = await self.get_portfolio_value()
         return self.starting_cash - portfolio_val
 
+    async def get_percentage_returns(self) -> float:
+        """
+        Calculates Percentage returns of asset positions, based on investments put in
+        """
+        returns = await self.get_returns()
+        return (returns / self.starting_cash) * 100
+
+    @property
+    def cash(self):
+        return self.__cash
+
+    def __str__(self):
+        return f"<Portfolio {self.session_id} {self.trading_type.value}>"

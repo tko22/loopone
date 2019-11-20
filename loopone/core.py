@@ -46,7 +46,7 @@ class TradingEnvironment(object):
         connect_to_mongo()
 
         self.portfolio = Portfolio(
-            capital_base=10000, client=self._client, trading_type=trading_type
+            capital_base=10, client=self._client, trading_type=trading_type
         )
 
     async def run_algorithm(self):
@@ -135,10 +135,29 @@ class TradingEnvironment(object):
     def run_worker(self, func):
         try:
             self.loop.run_until_complete(func())
+
         except KeyboardInterrupt:
             self.logger.warning("Keyboard Interrupted")
         finally:
+            if self._verbose:
+                self.logger.info(
+                    "Positions for session %s: %s",
+                    self.portfolio.session_id,
+                    self.portfolio.asset_positions,
+                )
+
+            self.loop.run_until_complete(self.log_portfolio_stats())
             self.stop()
+
+    async def log_portfolio_stats(self):
+        self.logger.info(
+            "Total Portfolio %s Value: \n - Total Value: %s \n - Cash: %s, Asset Value: %s \n - Total Return: %s",
+            self.portfolio.session_id,
+            await self.portfolio.get_portfolio_value(),
+            self.portfolio.cash,
+            await self.portfolio.get_asset_positions_value(),
+            await self.portfolio.get_returns(),
+        )
 
     async def get_environment(self):
         pass
