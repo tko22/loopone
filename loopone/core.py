@@ -70,7 +70,8 @@ class TradingEnvironment(object):
             if curr_st == dt.kline_start_time:
                 continue
 
-            # ------------------------------------------#
+            # ------------------------------------------ #
+            # ALGO
             # new kline in new interval -> perform algorithm
             self.logger.info("New kline.... Getting trade signal")
             # new kline interval. Run algo for trade signal and make trade.
@@ -84,7 +85,7 @@ class TradingEnvironment(object):
             if dt.ema(1) > dt.twenty_sma(1):
                 await self.order(dt, OrderSide.SIDE_BUY, 0.3)
             else:
-                await self.order(dt, OrderSide.SIDE_SELL, 0.3)
+                await self.order(dt, OrderSide.SIDE_BUY, 0.3)
 
     def backtest(self):
         self.logger.info("Starting backtest...")
@@ -135,7 +136,7 @@ class TradingEnvironment(object):
         try:
             self.loop.run_until_complete(func())
         except KeyboardInterrupt:
-            self.logger.info("Keyboard Interrupted")
+            self.logger.warning("Keyboard Interrupted")
         finally:
             self.stop()
 
@@ -157,7 +158,7 @@ class TradingEnvironment(object):
         pass
 
     def stop(self):
-        self.logger.info("Stopping Trading Environment and async loop... Goodbye")
+        self.logger.warning("Stopping Trading Environment and async loop... Goodbye")
         self.loop.run_until_complete(self._client.close_session())
         self.loop.stop()
         self.loop.close()
@@ -175,20 +176,9 @@ class TradingEnvironment(object):
         """Make an Order"""
         # TODO 1) check if it's live or paper trading,
         # 2) handle limit orders
-        # 3) get price when you actually buy it if real
-        self.logger.info(
-            "%s %s at price: %s",
-            "Buying" if order_side == OrderSide.SIDE_BUY else "Selling",
-            dt.symbol,
-            dt.price,
-        )
         try:
             self.portfolio.change_position(
-                asset=dt.symbol,
-                price=dt.price,
-                quantity=quantity,
-                order_side=order_side,
-                dt=dt,
+                asset=dt.symbol, quantity=quantity, order_side=order_side, dt=dt
             )
         except Exception:
             self.logger.exception("Failed to make Order...")

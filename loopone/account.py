@@ -1,11 +1,14 @@
 import time
+import logging
 from datetime import datetime
 from collections import defaultdict
+from typing import Tuple, Dict
 
 from loopone.enums import OrderSide, TradingType
 from loopone.data_topic import DataTopic
 from loopone.gateways.binance import BinanceClient
 from loopone.models import KlineRecord, PaperTradeOrder
+from uuid import uuid4
 
 # TODO: make positions and portfolio persistant
 class AssetPositions(object):
@@ -21,24 +24,66 @@ class AssetPositions(object):
         self.avg_price_bought = None
         self.positions = []  # TODO maybe make it a heap for better runtime?
 
-    def add_position(
-        self, quantity: float, price: float, timestamp: float = time.time()
-    ):
+    def buy(self, quantity: float, price: float, timestamp: float = time.time()):
         self.total_quantity += quantity
         # TODO include spread + fees
-        self.positions.append((quantity, price, quantity * price, timestamp))
+        self.positions.append(
+            (OrderSide.SIDE_BUY, quantity, price, quantity * price, timestamp)
+        )
 
-    def sell(self, quantity: float, price: float):
+    def sell(self, quantity: float, price: float, timestamp: float = time.time()):
         """
         Return returns made from the sell 
         """
         self.total_quantity -= quantity
+        self.positions.append(
+            (OrderSide.SIDE_SELL, quantity, price, quantity * price, timestamp)
+        )
 
-    def total_value(self, curr_asset_val: float) -> float:
+    def get_total_value(self, curr_asset_val: float) -> float:
         """
-        Total Value based on current asset value passed in as parameter
+        Total Value based on current asset value passed in as parameter. Note curr_asset_val must be based on base asset
         """
         return self.total_quantity * curr_asset_val
+
+    def get_return_details(self, curr_asset_val: float) -> Tuple:
+        """
+        Helper function: gets details on return of asset; value is based on base asset
+        
+        spent: amount spent buying asset
+        sold: realized share value (in "cash" aka base asset)
+        unrealized_share_val: amount of current shares held * curr value of asset
+        total: unrealized + realized value of shares
+        """
+        # add up amount of base_asset spent
+        spent = 0.0
+        sold = 0.0
+        for pos in self.positions:
+            if pos[0] == OrderSide.SIDE_BUY:
+                spent += pos[3]
+            if pos[0] == OrderSide.SIDE_SELL:
+                sold += pos[3]
+
+        # present value of remaining shares
+        unrealized_share_val = self.get_total_value(curr_asset_val)
+
+        total = unrealized_share_val + sold  # realized + unrealized value
+
+        return spent, sold, unrealized_share_val, total
+
+    def get_returns(self, curr_asset_val: float) -> float:
+        """
+        Get Total Base Asset Return value
+        """
+        spent, _, _, total = self.get_return_details(curr_asset_val)
+        return total - spent
+
+    def get_percentage_return(self, curr_asset_val: float) -> float:
+        """
+        Get percentage return; value based on base asset
+        """
+        spent, _, _, total = self.get_return_details(curr_asset_val)
+        return ((total - spent) / spent) * 100
 
     def __repr__(self):
         return f"<AssetPostion {self.asset}/{self.base_asset}"
@@ -53,26 +98,41 @@ class Portfolio(object):
     ):
         self._client = client
 
-        self.starting_cash = capital_base
-        self.cash = capital_base  # cash as in BTC
-        self.cash_flow = 0.0
-        self.asset_positions = {}
+        self.starting_cash: float = capital_base
+        self.cash: float = capital_base  # cash as in BTC
+        self.cash_flow: float = 0.0
+        self.asset_positions: Dict[AssetPositions] = {}
 
-        self.start_date = time.time()  # unix timestamp of the current time
-        self.positions_exposure = 0.0  # adding this for now
+        self.start_date: datetime = datetime.now()  # unix timestamp of the current time
+        self.positions_exposure: float = 0.0  # adding this for now
 
-        self.trading_type = trading_type
+        self.trading_type: TradingType = trading_type
+        self.session_id: str = str(uuid4())  # generate random uuid
+
+        self.logger = logging.getLogger(__name__)
+        self.logger.info(
+            "Set up Portfolio %s starting at %s. Trading type: %s",
+            self.session_id,
+            self.start_date,
+            self.trading_type,
+        )
 
     def change_position(
-        self,
-        asset: str,
-        quantity: float,
-        price: float,
-        order_side: OrderSide,
-        dt: DataTopic,
+        self, asset: str, quantity: float, order_side: OrderSide, dt: DataTopic
     ):
+        self.logger.info(
+            "%s %s %s",
+            "Buying" if order_side == OrderSide.SIDE_BUY else "Selling",
+            quantity,
+            asset,
+        )
+        price = (
+            dt.price
+        )  # for paper trading purposes. Todo change this to the price when you actually buy it for real
+
         total_value = price * quantity
         # TODO: validate inputs (i.e. whether asset is valid)
+        # 2) get price when you actually buy it if real
 
         # --------------------------------- #
 
@@ -81,10 +141,11 @@ class Portfolio(object):
             new_order = PaperTradeOrder(
                 symbol=asset,
                 time_executed=datetime.now(),
-                quantity=0.3,
+                quantity=quantity,
                 market_volume=dt.quote_asset_volume,
-                price=price,
+                price=dt.price,  # for paper trading purposes
                 order_side=order_side.value,
+                session_id=self.session_id,
             )
             new_order.save()
 
@@ -99,16 +160,16 @@ class Portfolio(object):
                 )
 
             # create new AssetPositions for asset if DNE
-            if self.asset_positions[asset] is None:
+            if self.asset_positions.get(asset) is None:
                 self.asset_positions[asset] = AssetPositions(asset)
 
-            self.asset_positions[asset].add_position(quantity=quantity, price=price)
+            self.asset_positions[asset].buy(quantity=quantity, price=price)
             self.cash -= total_value
 
         # ---------------------------------- #
         # SELL
         if order_side == OrderSide.SIDE_SELL:
-            if self.asset_positions[asset] is None:
+            if self.asset_positions.get(asset) is None:
                 raise ValueError(
                     f"No positions in {asset}. Cannot sell {quantity} {asset}."
                 )
@@ -144,7 +205,7 @@ class Portfolio(object):
             # addition of "btc" string is needed to include base asset
             # under assumption that base asset is BTC, calculates BTC value
             # TODO: change to be dynamic based on base_asset
-            total_val += asset_pos.total_value(asset_price)
+            total_val += asset_pos.get_total_value(asset_price)
 
     async def get_returns(self) -> float:
         """

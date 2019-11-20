@@ -23,4 +23,5 @@ class Order(mongoengine.DynamicDocument):
 
 class PaperTradeOrder(Order):
     price = FloatField(required=True)
+    session_id = StringField(required=True)
 

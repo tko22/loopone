@@ -57,10 +57,27 @@ def backtest(graph, output, file):
 
 
 @main.command()
-def paper():
+@click.option("-f", "--file", help="path to file with trading algorithm")
+def paper(file):
     """Run a paper trade for a given algorithm"""
+    imported_file = runpy.run_path(file)
+    handle_data_func = imported_file.get("handle_data")
+
+    if not handle_data_func:
+        click.echo(
+            f"{file} doesn't have handle_data function. Please check if you have it."
+        )
+        return
     worker = TradingEnvironment(api_key, api_secret)
     worker.run_worker(worker.run_algorithm)
+
+
+@main.command()
+@click.option("-s", "--sessionID", required=True, help="paper trading session id")
+def get_paper_stats(sessionID: str):
+    """Get Paper trading session Statistics"""
+    # query mongodb for trading sessionID
+    pass
 
 
 @main.command()
